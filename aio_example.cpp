@@ -32,8 +32,6 @@ namespace {
 int main() {
   const char* file = "/tmp/aiotest.txt";
 
-
-
   std::string text = "FOOBARBAZ\n";
     // Open a file.
   int fd;
