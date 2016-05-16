@@ -47,14 +47,12 @@ int main() {
   SYSCALL(close(fd));
   SYSCALL(fd = open(file, O_DIRECT | O_RDONLY));
 
-  io_context_t io_ctx;
+  io_context_t io_ctx = 0;
   int err;
 
-  // Create AIO queue. io_queue_init essentially wraps io_submit(2).
-  // io_queue_init doesn't use errno, so we need to capture the return and
-  // pass it to strerror.
-  CHECK((err = io_queue_init(64, &io_ctx)) == 0) 
-    << "io_queue_init failed(" << err << "): " 
+  // Create AIO queue.
+  CHECK((err = io_setup(1, &io_ctx)) == 0)
+    << "io_setup failed(" << err << "): "
     << strerror(err);
 
   std::array<struct iocb*, 1> cbs;
@@ -65,27 +63,26 @@ int main() {
   // Since AIO is O_DIRECT only, we need to align to pagesize.
   void* buf;
   posix_memalign(&buf, pagesize, pagesize);
-  
+
   // Fill in our iocb.
   io_prep_pread(&cb, // iocb structure
-		fd, 
+		fd,
 		buf,
 		pagesize, // amount to read
 		0); // offset
   cbs[0] = &cb;
-  
+
   SYSCALL(io_submit(io_ctx, 1, cbs.data()));
-  
+
   // passing null for the timeout makes us block. In real code, this would
   // defeat the point of using aio, but it's fine for our example.
   int ev_ct;
   std::array<struct io_event, 1> events = { 0 };
   std::cout << "res: " << events[0].res << std::endl;
   SYSCALL((ev_ct = io_getevents(io_ctx, cbs.size(), cbs.size(), events.data(), nullptr)));
-  
+
   std::cout << "got " << ev_ct << std::endl;
   std::cout << "res: " << events[0].res << std::endl;
-  std::cout << strerror(events[0].res) << std::endl;
   std::cout.write(reinterpret_cast<char*>(buf), pagesize);
 
   SYSCALL(io_destroy(io_ctx));
